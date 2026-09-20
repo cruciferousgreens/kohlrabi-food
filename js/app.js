@@ -1,7 +1,7 @@
 // js/app.js — Kohlrabi Food v1 (sample data). Tabs: Log / Scan / Goals.
 import { startScanner, normalizeBarcode } from './scanner.js';
 import { lookupBarcode, searchFoods, scaleNutrients, HEADLINE, HEADLINE_LABEL, HEADLINE_UNIT, EXTRA_LABEL, EXTRA_UNIT } from './fake-api.js';
-import { todayISO, shiftISO, prettyDate, getDay, addEntry, removeEntry, dayTotals, getGoals, setGoals, getCustom, addCustom, getHistory, saveHistory } from './store.js';
+import { todayISO, shiftISO, prettyDate, getDay, addEntry, removeEntry, dayTotals, periodDays, getGoals, setGoals, getCustom, addCustom, getHistory, saveHistory } from './store.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 let viewISO = todayISO();
@@ -14,11 +14,14 @@ document.querySelectorAll('nav.tabs button').forEach(btn => {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     btn.classList.add('active');
     $('#tab-' + btn.dataset.tab).classList.add('active');
+    $('#fab-add').hidden = btn.dataset.tab !== 'log';
     if (btn.dataset.tab === 'scan') ensureScanner();
     else stopScanner();
     if (btn.dataset.tab === 'goals') renderGoals();
+    if (btn.dataset.tab === 'stats') renderStats();
   });
 });
+$('#fab-add').addEventListener('click', openAddSheet);
 
 // ---------- Log ----------
 function renderLog() {
@@ -164,10 +167,17 @@ function renderProductSheet(barcode) {
   });
 }
 
-function openNotFoundSheet(barcode) {
+function openNotFoundSheet(barcode) { openManualEntrySheet(barcode); }
+
+// Manual food entry — reached from a barcode miss or from the Log + button.
+function openManualEntrySheet(barcode) {
+  const title = barcode ? 'Not in the sample catalog' : 'Add food manually';
+  const sub = barcode
+    ? `Barcode ${esc(barcode)} · the real app would check Open Food Facts + USDA here.`
+    : 'Type it in from the label.';
   openSheet(`
-    <h2>Not in the sample catalog</h2>
-    <div class="brand">Barcode ${esc(barcode)} · the real app would check Open Food Facts + USDA here.</div>
+    <h2>${title}</h2>
+    <div class="brand">${sub}</div>
     <label class="field">Food name</label><input type="text" id="m-name" placeholder="e.g. Store-brand granola">
     <label class="field">Serving description</label><input type="text" id="m-serving" placeholder="e.g. 2/3 cup (55g)" value="1 serving">
     <div class="row">
@@ -203,6 +213,56 @@ function switchTab(name) {
   document.querySelector(`nav.tabs button[data-tab="${name}"]`).click();
 }
 
+// ---------- Log + button: scan / search / manual ----------
+function openAddSheet() {
+  openSheet(`
+    <h2>Add food</h2>
+    <div class="brand">How do you want to add it?</div>
+    <button class="btn" id="add-scan" style="margin-bottom:8px">📷&nbsp; Scan barcode</button>
+    <button class="btn secondary" id="add-search" style="margin-bottom:8px">🔍&nbsp; Search foods</button>
+    <button class="btn secondary" id="add-manual" style="margin-bottom:8px">✏️&nbsp; Add manually</button>
+    <div style="height:8px"></div>
+    <button class="btn secondary" id="add-cancel">Cancel</button>
+  `);
+  $('#add-scan').addEventListener('click', () => { closeSheet(); switchTab('scan'); });
+  $('#add-search').addEventListener('click', openSearchSheet);
+  $('#add-manual').addEventListener('click', () => openManualEntrySheet(null));
+  $('#add-cancel').addEventListener('click', closeSheet);
+}
+
+function openSearchSheet() {
+  openSheet(`
+    <h2>Search foods</h2>
+    <div class="brand">Sample catalog + your custom foods</div>
+    <div class="row">
+      <input type="text" id="sh-q" placeholder="e.g. cheerios">
+      <button class="btn small" id="sh-go">Search</button>
+    </div>
+    <div id="sh-results" style="margin-top:8px"></div>
+    <div style="height:8px"></div>
+    <button class="btn secondary" id="sh-cancel">Cancel</button>
+  `);
+  $('#sh-cancel').addEventListener('click', closeSheet);
+  const run = async () => {
+    const q = $('#sh-q').value.trim();
+    if (q.length < 2) return;
+    $('#sh-results').innerHTML = '<div class="muted">Searching…</div>';
+    const hits = await searchFoods(q);
+    const customs = getCustom().filter(c => c.name.toLowerCase().includes(q.toLowerCase()));
+    const all = [...customs, ...hits];
+    $('#sh-results').innerHTML = all.length ? all.map((p, i) => `
+      <div class="entry"><div><div class="name">${esc(p.name)}${p.sample ? '<span class="sample-badge">SAMPLE</span>' : ''}${p.custom ? '<span class="sample-badge">CUSTOM</span>' : ''}</div>
+      <div class="amt">${esc(p.brand || '')} · ${esc(p.serving.label)}${p.serving.grams ? ` (${p.serving.grams}g)` : ''}</div></div>
+      <button class="btn small" data-i="${i}">Add</button></div>`).join('')
+      : '<div class="empty"><strong>No matches</strong>Try adding it manually instead.</div>';
+    $('#sh-results').querySelectorAll('button').forEach(b =>
+      b.addEventListener('click', () => openProductSheet(all[+b.dataset.i], null)));
+  };
+  $('#sh-go').addEventListener('click', run);
+  $('#sh-q').addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
+  setTimeout(() => $('#sh-q').focus(), 50);
+}
+
 // ---------- Goals + TDEE ----------
 function renderGoals() {
   const g = getGoals();
@@ -230,6 +290,99 @@ $('#tdee-calc').addEventListener('click', () => {
     $('#goals-msg').textContent = 'Calorie goal set to ' + tdee + '.';
   });
 });
+
+// ---------- Stats (goals vs actuals, workout-app language) ----------
+let statsPeriod = 'week', statsWeekOffset = 0, statsSelDate = null;
+const MACROS5 = ['calories', 'protein', 'carbs', 'fat', 'fiber'];
+
+function mondayISO(offset) {
+  const d = new Date(); d.setHours(12, 0, 0, 0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + offset * 7);
+  return todayISO(d);
+}
+
+function goalRow(k, actual, goal) {
+  const pct = goal > 0 ? Math.min(100, (actual / goal) * 100) : 0;
+  const over = goal > 0 && actual > goal;
+  return `<div class="goalbar${over ? ' over' : ''}">
+    <div class="lbl"><span class="${k === 'fiber' ? 'fiber-tag' : ''}">${HEADLINE_LABEL[k]}${k === 'fiber' ? ' ✦' : ''}</span>
+    <span>${fmt(actual)}${HEADLINE_UNIT[k]} / ${goal}${HEADLINE_UNIT[k]}</span></div>
+    <div class="track"><div class="fill${k === 'fiber' ? ' fiber' : ''}" style="width:${pct}%"></div></div>
+  </div>`;
+}
+
+function renderStats() {
+  const goals = getGoals();
+  const tabs = $('#stats-period');
+  tabs.innerHTML = ['week', 'month'].map(p =>
+    `<button type="button" class="period-tab" data-p="${p}" aria-pressed="${statsPeriod === p}">${p === 'week' ? 'Week' : 'Month'}</button>`).join('');
+  tabs.querySelectorAll('[data-p]').forEach(b => b.addEventListener('click', () => {
+    if (statsPeriod === b.dataset.p) return;
+    statsPeriod = b.dataset.p; statsSelDate = null; renderStats();
+  }));
+  $('#stats-week-prev').onclick = () => { statsWeekOffset -= 1; statsSelDate = null; renderStats(); };
+  $('#stats-week-next').onclick = () => { if (statsWeekOffset < 0) { statsWeekOffset += 1; statsSelDate = null; renderStats(); } };
+  $('#stats-week-next').style.opacity = statsWeekOffset >= 0 ? '.4' : '1';
+
+  let days, label, showStrip = true;
+  if (statsPeriod === 'week') {
+    const start = mondayISO(statsWeekOffset);
+    days = periodDays(start, 7);
+    $('#stats-week-label').textContent = `${prettyDate(start)} – ${prettyDate(shiftISO(start, 6))}`;
+  } else {
+    showStrip = false;
+    days = periodDays(shiftISO(todayISO(), -29), 30);
+  }
+  $('#stats-strip-wrap').style.display = showStrip ? '' : 'none';
+  $('#stats-cal-card').style.display = showStrip ? '' : 'none';
+
+  if (showStrip) {
+    const today = todayISO();
+    $('#stats-strip').innerHTML = days.map(({ iso, totals }) => {
+      const d = new Date(iso + 'T12:00:00');
+      const logged = getDay(iso).length > 0;
+      return `<button type="button" class="day-chip${iso === today ? ' today' : ''}${logged ? ' has-log' : ''}${statsSelDate === iso ? ' selected' : ''}" data-d="${iso}" aria-pressed="${statsSelDate === iso}">
+        <span>${d.toLocaleDateString(undefined, { weekday: 'narrow' })}</span><strong>${d.getDate()}</strong><em>${logged ? Math.round(totals.calories) : ''}</em></button>`;
+    }).join('');
+    $('#stats-strip').querySelectorAll('[data-d]').forEach(b => b.addEventListener('click', () => {
+      statsSelDate = statsSelDate === b.dataset.d ? null : b.dataset.d;
+      renderStats();
+    }));
+
+    // Calories by day with goal line; tap a bar to inspect the day.
+    const max = Math.max(goals.calories, ...days.map(d => d.totals.calories), 1);
+    const goalPct = (goals.calories / max) * 100;
+    $('#stats-cals').innerHTML = `
+      <div class="bars">
+        <div class="goal-line" style="bottom:${goalPct}%"></div>
+        ${days.map(({ iso, totals }) => {
+          const h = Math.max(2.5, (totals.calories / max) * 100);
+          return `<div class="bar-col${statsSelDate === iso ? ' selected' : ''}" data-d="${iso}"><div class="bar${totals.calories > goals.calories ? ' over' : ''}" style="height:${h}%"></div></div>`;
+        }).join('')}
+      </div>
+      <div class="bar-labels">${days.map(({ iso }) =>
+        `<span>${new Date(iso + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'narrow' })}</span>`).join('')}</div>
+      <div class="muted" style="margin-top:8px">Dashed line = daily goal (${goals.calories} kcal). Tap a bar or day to inspect it.</div>`;
+    $('#stats-cals').querySelectorAll('[data-d]').forEach(b => b.addEventListener('click', () => {
+      statsSelDate = statsSelDate === b.dataset.d ? null : b.dataset.d;
+      renderStats();
+    }));
+  }
+
+  // Goals vs actuals: selected day, or daily average across the period.
+  let actuals;
+  if (statsSelDate) {
+    actuals = dayTotals(statsSelDate);
+    label = prettyDate(statsSelDate);
+  } else {
+    actuals = {};
+    for (const k of MACROS5) actuals[k] = days.reduce((s, d) => s + d.totals[k], 0) / days.length;
+    for (const k of MACROS5) actuals[k] = Math.round(actuals[k] * 10) / 10;
+    label = statsPeriod === 'week' ? 'daily average · this week' : 'daily average · last 30 days';
+  }
+  $('#stats-avg-label').textContent = '— ' + label;
+  $('#stats-goals').innerHTML = MACROS5.map(k => goalRow(k, actuals[k], goals[k])).join('');
+}
 
 // ---------- init ----------
 renderLog();

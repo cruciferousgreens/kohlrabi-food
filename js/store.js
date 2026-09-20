@@ -48,6 +48,16 @@ export function dayTotals(iso) {
   return t;
 }
 
+// --- Period aggregates: [{iso, totals}] for n consecutive days from startISO ---
+export function periodDays(startISO, n) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const iso = shiftISO(startISO, i);
+    out.push({ iso, totals: dayTotals(iso) });
+  }
+  return out;
+}
+
 // --- Goals ---
 const DEFAULT_GOALS = { calories: 2200, protein: 150, carbs: 250, fat: 75, fiber: 30 };
 export function getGoals() { return { ...DEFAULT_GOALS, ...read(K.goals, {}) }; }

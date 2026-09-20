@@ -64,6 +64,30 @@
       </div>
     </section>
 
+    <!-- STATS -->
+    <section class="tab" id="tab-stats">
+      <div class="card">
+        <h3>At a glance</h3>
+        <div class="period-tabs" id="stats-period"></div>
+        <div id="stats-strip-wrap" style="margin-top:12px">
+          <div class="week-nav">
+            <button class="btn small secondary" id="stats-week-prev">‹</button>
+            <strong id="stats-week-label" style="font-size:13px"></strong>
+            <button class="btn small secondary" id="stats-week-next">›</button>
+          </div>
+          <div class="week-strip" id="stats-strip"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Goals vs actuals <span class="muted" id="stats-avg-label"></span></h3>
+        <div id="stats-goals"></div>
+      </div>
+      <div class="card" id="stats-cal-card">
+        <h3>Calories by day</h3>
+        <div id="stats-cals"></div>
+      </div>
+    </section>
+
     <!-- GOALS -->
     <section class="tab" id="tab-goals">
       <div class="card">
@@ -99,9 +123,11 @@
 
   <nav class="tabs">
     <button data-tab="log" class="active"><span class="ico">📝</span>Log</button>
-    <button data-tab="scan"><span class="ico">📷</span>Scan</button>
+    <button data-tab="scan"><span class="ico">📷</span>scan</button>
+    <button data-tab="stats"><span class="ico">📊</span>Stats</button>
     <button data-tab="goals"><span class="ico">🎯</span>Goals</button>
   </nav>
+  <button id="fab-add" class="fab" aria-label="Add food">+</button>
 </div>
 <script type="module" src="js/app.js"></script>
 </body>
