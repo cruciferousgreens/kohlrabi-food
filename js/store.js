@@ -1,5 +1,5 @@
 // js/store.js — local-first persistence (localStorage). No account, no sync in v1.
-const K = { log: 'kfood:log:v1', goals: 'kfood:goals:v1', custom: 'kfood:custom:v1', history: 'kfood:history:v1' };
+const K = { log: 'kfood:log:v1', goals: 'kfood:goals:v1', custom: 'kfood:custom:v1', history: 'kfood:history:v1', settings: 'kfood:settings:v1' };
 
 function read(key, fallback) {
   try {
@@ -65,7 +65,7 @@ export function recentFoods(limit = 6) {
   for (let i = 0; i < 30 && seen.size < limit; i++) {
     const iso = shiftISO(t, -i);
     for (const e of getDay(iso)) {
-      const key = [e.name, e.brand, e.serving.label].join('|');
+      const key = [e.name, e.brand, e.amountLabel].join('|');
       if (!seen.has(key)) seen.set(key, e);
     }
   }
@@ -73,30 +73,53 @@ export function recentFoods(limit = 6) {
 }
 
 // --- Body weight entries: [{iso, lb}] sorted ascending ---
+function settings() { return read(K.settings, {}); }
+function saveSettings(d) { write(K.settings, d); }
+
 export function getWeights() {
-  const d = read();
-  return (d.weights || []).slice().sort((a, b) => a.iso < b.iso ? -1 : 1);
+  return (settings().weights || []).slice().sort((a, b) => a.iso < b.iso ? -1 : 1);
 }
 export function addWeight(iso, lb) {
-  const d = read();
+  const d = settings();
   d.weights = (d.weights || []).filter(w => w.iso !== iso);
   d.weights.push({ iso, lb: Math.round(lb * 10) / 10 });
-  write(d);
+  saveSettings(d);
 }
 
 // --- Settings: weight unit, goal direction, last TDEE ---
-export function getUnit() { return read().unit || 'lb'; }
-export function setUnit(u) { const d = read(); d.unit = u; write(d); }
-export function getDirection() { return read().direction || 'maintain'; }
-export function setDirection(dir) { const d = read(); d.direction = dir; write(d); }
-export function getRate() { const r = read().rate; return r > 0 ? r : 1; }
-export function setRate(r) { const d = read(); d.rate = r; write(d); }
-export function getGoalWeight() { return read().goalWeightLb || 0; } // stored in lb
-export function setGoalWeight(lb) { const d = read(); d.goalWeightLb = lb; write(d); }
-export function getTDEE() { return read().tdee || 0; }
-export function setTDEE(t) { const d = read(); d.tdee = t; write(d); }
-export function exportAll() { return read(); }
-export function wipeAll() { try { localStorage.removeItem(K); } catch (_) {} }
+export function getUnit() { return settings().unit || 'lb'; }
+export function setUnit(u) { const d = settings(); d.unit = u; saveSettings(d); }
+export function getDirection() { return settings().direction || 'maintain'; }
+export function setDirection(dir) { const d = settings(); d.direction = dir; saveSettings(d); }
+export function getRate() { const r = settings().rate; return r > 0 ? r : 1; }
+export function setRate(r) { const d = settings(); d.rate = r; saveSettings(d); }
+export function getGoalWeight() { return settings().goalWeightLb || 0; } // stored in lb
+export function setGoalWeight(lb) { const d = settings(); d.goalWeightLb = lb; saveSettings(d); }
+export function getTDEE() { return settings().tdee || 0; }
+export function setTDEE(t) { const d = settings(); d.tdee = t; saveSettings(d); }
+export function exportAll() {
+  const out = {};
+  for (const k of Object.values(K)) out[k] = read(k, null);
+  return out;
+}
+export function wipeAll() { try { for (const k of Object.values(K)) localStorage.removeItem(k); } catch (_) {} }
+
+// --- Log entry serving edits (rescales nutrients by servings ratio) ---
+export function updateEntryServings(iso, id, servings) {
+  if (!(servings > 0)) return;
+  const log = read(K.log, {});
+  const e = (log[iso] || []).find(x => x.id === id);
+  if (!e) return;
+  const ratio = servings / (e.servings || 1);
+  const n = {};
+  for (const k of ['calories', 'protein', 'carbs', 'fat', 'fiber'])
+    n[k] = Math.round(((e.nutrients && e.nutrients[k]) || 0) * ratio * 10) / 10;
+  e.servings = servings;
+  e.nutrients = { ...(e.nutrients || {}), ...n };
+  if (e.amountLabel) e.amountLabel = e.amountLabel.replace(/^[\d.]+ × /, `${fmtNum(servings)} × `);
+  write(K.log, log);
+}
+function fmtNum(n) { return (Math.round(n * 100) / 100).toString(); }
 
 // --- Goals ---
 const DEFAULT_GOALS = { calories: 2200, protein: 150, carbs: 250, fat: 75, fiber: 30 };

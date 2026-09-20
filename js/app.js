@@ -1,7 +1,7 @@
 // js/app.js — Kohlrabi Food v1 (sample data). Tabs: Log / Scan / Goals.
 import { startScanner, normalizeBarcode } from './scanner.js';
 import { lookupBarcode, searchFoods, scaleNutrients, HEADLINE, HEADLINE_LABEL, HEADLINE_UNIT, EXTRA_LABEL, EXTRA_UNIT } from './fake-api.js';
-import { todayISO, shiftISO, prettyDate, getDay, addEntry, removeEntry, dayTotals, periodDays, recentFoods, getWeights, addWeight, getGoals, setGoals, getCustom, addCustom, getHistory, saveHistory, getUnit, setUnit, getDirection, setDirection, getRate, setRate, getGoalWeight, setGoalWeight, getTDEE, setTDEE, exportAll, wipeAll } from './store.js';
+import { todayISO, shiftISO, prettyDate, getDay, addEntry, removeEntry, updateEntryServings, dayTotals, periodDays, recentFoods, getWeights, addWeight, getGoals, setGoals, getCustom, addCustom, getHistory, saveHistory, getUnit, setUnit, getDirection, setDirection, getRate, setRate, getGoalWeight, setGoalWeight, getTDEE, setTDEE, exportAll, wipeAll } from './store.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 let viewISO = todayISO();
@@ -42,7 +42,7 @@ function renderLog() {
   const entries = getDay(viewISO).slice().sort((a, b) => a.ts - b.ts);
   $('#entries').innerHTML = entries.length ? entries.map(e => `
     <div class="entry">
-      <div><div class="name">${esc(e.name)}${e.sample ? '<span class="sample-badge">SAMPLE</span>' : ''}</div>
+      <div data-edit="${e.id}" style="cursor:pointer;flex:1"><div class="name">${esc(e.name)}${e.sample ? '<span class="sample-badge">SAMPLE</span>' : ''}</div>
       <div class="amt">${esc(e.amountLabel || '')}</div></div>
       <div class="row"><div class="macros">${Math.round(e.nutrients.calories)} cal<br>P ${fmt(e.nutrients.protein)} · Fb ${fmt(e.nutrients.fiber)}g</div>
       <button class="del" data-id="${e.id}" aria-label="Delete">×</button></div>
@@ -51,6 +51,11 @@ function renderLog() {
 
   $('#entries').querySelectorAll('.del').forEach(b =>
     b.addEventListener('click', () => { removeEntry(viewISO, b.dataset.id); renderLog(); }));
+  $('#entries').querySelectorAll('[data-edit]').forEach(el =>
+    el.addEventListener('click', () => {
+      const e = getDay(viewISO).find(x => x.id === el.dataset.edit);
+      if (e) openEntrySheet(e);
+    }));
 
   // Quick add: one-tap re-log of recently eaten foods, right on the log.
   const recents = recentFoods(6);
@@ -58,13 +63,55 @@ function renderLog() {
   if (recents.length) {
     $('#quick-add').innerHTML = recents.map((p, i) => `
       <div class="entry"><div><div class="name">${esc(p.name)}</div>
-      <div class="amt">${esc(p.brand || '')}${p.brand ? ' · ' : ''}${esc(p.serving.label)} · ${Math.round(p.nutrients.calories)} kcal</div></div>
+      <div class="amt">${esc(p.amountLabel || '')} · ${Math.round(p.nutrients.calories)} kcal</div></div>
       <button class="btn small" data-q="${i}">Log</button></div>`).join('');
     $('#quick-add').querySelectorAll('[data-q]').forEach(b =>
-      b.addEventListener('click', () => { addEntry(recents[+b.dataset.q], 1, viewISO); renderLog(); }));
+      b.addEventListener('click', () => {
+        const p = recents[+b.dataset.q];
+        addEntry(viewISO, { name: p.name, brand: p.brand, sample: !!p.sample,
+          amountLabel: p.amountLabel, servings: p.servings || 1,
+          nutrients: { ...(p.nutrients || {}) }, source: p.source });
+        renderLog();
+      }));
   }
 }
 function fmt(n) { return (Math.round(n * 10) / 10).toString(); }
+
+// Tap a logged entry to adjust its servings (nutrients rescale) or delete it.
+function openEntrySheet(e) {
+  let servings = e.servings || 1;
+  const scaled = () => {
+    const ratio = servings / (e.servings || 1);
+    const n = {};
+    for (const k of ['calories', 'protein', 'carbs', 'fat', 'fiber'])
+      n[k] = Math.round(((e.nutrients && e.nutrients[k]) || 0) * ratio * 10) / 10;
+    return n;
+  };
+  const draw = () => {
+    const n = scaled();
+    openSheet(`
+      <h2>${esc(e.name)}</h2>
+      <div class="brand">${esc(e.amountLabel || '')}</div>
+      <div class="stepper">
+        <button id="e-minus" aria-label="Fewer servings">−</button>
+        <div class="val">${fmt(servings)} × serving</div>
+        <button id="e-plus" aria-label="More servings">+</button>
+      </div>
+      <div class="muted" style="margin-bottom:12px;text-align:center">${Math.round(n.calories)} kcal · P ${fmt(n.protein)}g · C ${fmt(n.carbs)}g · F ${fmt(n.fat)}g · Fb ${fmt(n.fiber)}g</div>
+      <button class="btn" id="e-save">Save</button>
+      <div style="height:8px"></div>
+      <button class="btn secondary" id="e-delete" style="color:var(--danger)">Delete entry</button>
+      <div style="height:8px"></div>
+      <button class="btn secondary" id="e-cancel">Cancel</button>
+    `);
+    $('#e-minus').addEventListener('click', () => { servings = Math.max(0.25, Math.round((servings - 0.25) * 100) / 100); draw(); });
+    $('#e-plus').addEventListener('click', () => { servings = Math.round((servings + 0.25) * 100) / 100; draw(); });
+    $('#e-cancel').addEventListener('click', closeSheet);
+    $('#e-save').addEventListener('click', () => { updateEntryServings(viewISO, e.id, servings); closeSheet(); renderLog(); });
+    $('#e-delete').addEventListener('click', () => { removeEntry(viewISO, e.id); closeSheet(); renderLog(); });
+  };
+  draw();
+}
 function esc(s) { return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
 $('#date-prev').addEventListener('click', () => { viewISO = shiftISO(viewISO, -1); renderLog(); });

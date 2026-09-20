@@ -91,7 +91,7 @@ nav.tabs button {
 nav.tabs button .ico { font-size: 22px; }
 nav.tabs button svg { width: 24px; height: 24px; }
 nav.tabs button.active { color: var(--accent); }
-header.topbar .title svg.leaf { width: 22px; height: 22px; color: var(--accent); flex: none; }
+header.topbar .title svg.plate { width: 22px; height: 22px; color: var(--accent); flex: none; }
 header.topbar .title { gap: 6px; }
 .scan-hero .hero-ico { width: 56px; height: 56px; color: var(--accent); }
 
@@ -227,14 +227,15 @@ details.nutrients summary { cursor: pointer; font-weight: 700; color: var(--acce
 /* ===== FAB (Log: add food) ===== */
 .fab {
   position: fixed; z-index: 15;
-  right: 16px; bottom: calc(96px + env(safe-area-inset-bottom));
+  right: max(16px, calc(50vw - 300px + 16px)); bottom: calc(96px + env(safe-area-inset-bottom));
   width: 56px; height: 56px; border-radius: 50%; border: 0;
-  background: var(--accent); color: #fff; font-size: 30px; line-height: 1;
+  background: var(--accent); color: #fff;
   box-shadow: var(--shadow); cursor: pointer;
   display: grid; place-items: center;
-  font-family: var(--font-sans);
+  padding: 0;
 }
-.fab:active { background: var(--accent-hover); }
+.fab svg { width: 26px; height: 26px; }
+.fab:active { background: var(--accent-hover); transform: scale(.96); }
 .fab[hidden] { display: none; }
 
 /* ===== Stats: period tabs, week strip, bars (workout-app language) ===== */
@@ -281,5 +282,4 @@ details.nutrients summary { cursor: pointer; font-weight: 700; color: var(--acce
   main { max-width: 600px; }
   .sheet-backdrop { align-items: center; padding: 24px; }
   .sheet { border-radius: var(--radius-lg); max-height: calc(100dvh - 48px); }
-  .fab { right: 24px; }
 }
