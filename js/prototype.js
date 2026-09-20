@@ -1,9 +1,10 @@
 // js/prototype.js — scanner prototype: camera + decode diagnostics on real hardware.
 import { startScanner, normalizeBarcode } from './scanner.js';
-import { lookupBarcode, scaleNutrients, HEADLINE, HEADLINE_LABEL, HEADLINE_UNIT } from './fake-api.js';
+import { lookupBarcode, searchFoods, scaleNutrients, HEADLINE, HEADLINE_LABEL, HEADLINE_UNIT } from './fake-api.js';
 import { getHistory, saveHistory } from './store.js';
 
 const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const logEl = $('#diag');
 function log(msg) {
   const t = new Date().toLocaleTimeString();
@@ -68,6 +69,25 @@ function showProduct(p, barcode, cached) {
 $('#manual-btn').addEventListener('click', () => {
   const v = normalizeBarcode($('#manual').value);
   if (v) { log('manual entry: ' + v); handleLookup(v); }
+});
+
+$('#p-search-btn').addEventListener('click', async () => {
+  const q = $('#p-search').value.trim();
+  if (q.length < 2) return;
+  $('#p-search-results').innerHTML = '<div class="muted">Searching sample catalog…</div>';
+  const hits = await searchFoods(q);
+  log(`search "${q}": ${hits.length} hit(s)`);
+  $('#p-search-results').innerHTML = hits.length ? hits.map((p, i) => `
+    <div class="entry"><div><div class="name">${esc(p.name)}<span class="sample-badge">SAMPLE</span></div>
+    <div class="amt">${esc(p.brand)} · ${esc(p.serving.label)} (${p.serving.grams}g)</div></div>
+    <button class="btn small" data-i="${i}">View</button></div>`).join('')
+    : '<div class="empty"><strong>No matches</strong>Nothing in the sample catalog for that.</div>';
+  $('#p-search-results').querySelectorAll('button').forEach(b =>
+    b.addEventListener('click', () => {
+      const p = hits[+b.dataset.i];
+      log('search select: ' + p.brand + ' ' + p.name);
+      showProduct(p, p.barcodes[0], false);
+    }));
 });
 
 log('prototype ready — tap Start camera.');

@@ -12,18 +12,18 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <span>🥬 Kohlrabi Food <span class="sample-badge">SAMPLE DATA</span></span>
-    <span class="date-nav">
-      <button id="date-prev" aria-label="Previous day">‹</button>
-      <span id="date-label"></span>
-      <button id="date-next" aria-label="Next day">›</button>
-    </span>
+    <h1 class="title">🥬 Kohlrabi Food<span class="sample-badge">SAMPLE</span></h1>
   </header>
 
   <main>
     <!-- LOG -->
     <section class="tab active" id="tab-log">
       <div class="card">
+        <div class="row between" style="margin-bottom:10px">
+          <button class="btn small secondary" id="date-prev" aria-label="Previous day">‹ Prev</button>
+          <strong id="date-label" style="font-size:15px"></strong>
+          <button class="btn small secondary" id="date-next" aria-label="Next day">Next ›</button>
+        </div>
         <h3>Today's totals <span class="muted">vs goals</span></h3>
         <div id="rollup"></div>
       </div>

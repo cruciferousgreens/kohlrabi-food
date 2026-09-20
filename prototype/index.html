@@ -10,7 +10,7 @@
 </head>
 <body>
 <div class="app">
-  <header class="topbar"><span>🥬 Scanner prototype <span class="sample-badge">SAMPLE DATA</span></span></header>
+  <header class="topbar"><h1 class="title">🥬 Scanner prototype<span class="sample-badge">SAMPLE</span></h1></header>
   <main>
     <div class="card">
       <div class="muted" style="margin-bottom:10px">
@@ -32,6 +32,14 @@
         <input type="tel" id="manual" inputmode="numeric" placeholder="e.g. 3017624010701">
         <button class="btn small" id="manual-btn" style="white-space:nowrap">Look up</button>
       </div>
+    </div>
+    <div class="card">
+      <h3>Search by name <span class="muted">(sample catalog)</span></h3>
+      <div class="row">
+        <input type="text" id="p-search" placeholder="e.g. cheerios">
+        <button class="btn small" id="p-search-btn">Search</button>
+      </div>
+      <div id="p-search-results" style="margin-top:8px"></div>
     </div>
     <div id="result"></div>
     <div class="card">
