@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Scanner Prototype — Kohlrabi Food</title>
+<meta name="theme-color" content="#1e7a34">
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar"><span>🥬 Scanner prototype <span class="sample-badge">SAMPLE DATA</span></span></header>
+  <main>
+    <div class="card">
+      <div class="muted" style="margin-bottom:10px">
+        Hardware check: which decoder path this browser takes, camera resolution,
+        decode latency, and the fake-API lookup result. Try a real product barcode.
+      </div>
+      <button class="btn" id="start-btn">Start camera</button>
+    </div>
+    <div class="card">
+      <div class="viewfinder-wrap">
+        <video id="viewfinder" class="viewfinder" muted playsinline></video>
+        <div class="scan-frame"></div>
+        <div class="scan-status" id="scan-status">Camera idle</div>
+      </div>
+    </div>
+    <div class="card">
+      <label class="field">Manual barcode</label>
+      <div class="row">
+        <input type="tel" id="manual" inputmode="numeric" placeholder="e.g. 3017624010701">
+        <button class="btn small" id="manual-btn" style="white-space:nowrap">Look up</button>
+      </div>
+    </div>
+    <div id="result"></div>
+    <div class="card">
+      <h3>Diagnostics</h3>
+      <div class="diag" id="diag"></div>
+    </div>
+    <div class="card">
+      <a href="../" style="color:var(--green);font-weight:700">← Back to the app</a>
+    </div>
+  </main>
+</div>
+<script type="module" src="../js/prototype.js"></script>
+</body>
+</html>

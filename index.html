@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kohlrabi Food</title>
+<meta name="theme-color" content="#1e7a34">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <span>🥬 Kohlrabi Food <span class="sample-badge">SAMPLE DATA</span></span>
+    <span class="date-nav">
+      <button id="date-prev" aria-label="Previous day">‹</button>
+      <span id="date-label"></span>
+      <button id="date-next" aria-label="Next day">›</button>
+    </span>
+  </header>
+
+  <main>
+    <!-- LOG -->
+    <section class="tab active" id="tab-log">
+      <div class="card">
+        <h3>Today's totals <span class="muted">vs goals</span></h3>
+        <div id="rollup"></div>
+      </div>
+      <div class="card">
+        <h3>Log <span class="muted">— chronological</span></h3>
+        <div id="entries"></div>
+      </div>
+    </section>
+
+    <!-- SCAN -->
+    <section class="tab" id="tab-scan">
+      <div class="card scan-hero">
+        <div class="big">📷</div>
+        <h3>Scan a barcode</h3>
+        <div class="muted">Point the camera at a product barcode.</div>
+      </div>
+      <div class="card">
+        <div class="viewfinder-wrap">
+          <video id="viewfinder" class="viewfinder" muted playsinline></video>
+          <div class="scan-frame"></div>
+          <div class="scan-status" id="scan-status">Starting camera…</div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>No barcode?</h3>
+        <label class="field">Type a barcode</label>
+        <div class="row">
+          <input type="tel" id="manual-barcode" inputmode="numeric" placeholder="e.g. 3017624010701">
+          <button class="btn small" id="manual-barcode-btn" style="white-space:nowrap">Look up</button>
+        </div>
+        <label class="field">Or search by name <span class="muted">(sample catalog)</span></label>
+        <div class="row">
+          <input type="text" id="name-search" placeholder="e.g. cheerios">
+          <button class="btn small" id="name-search-btn" style="white-space:nowrap">Search</button>
+        </div>
+        <div id="search-results" style="margin-top:8px"></div>
+        <div class="muted" style="margin-top:8px">Try a sample barcode: 3017624010701 (Nutella), 016000275287 (Cheerios), 888849007521 (Quest bar).</div>
+      </div>
+    </section>
+
+    <!-- GOALS -->
+    <section class="tab" id="tab-goals">
+      <div class="card">
+        <h3>Daily goals</h3>
+        <div id="goals-form"></div>
+        <div class="muted" id="goals-msg" style="margin-top:8px"></div>
+      </div>
+      <div class="card">
+        <h3>TDEE estimator <span class="muted">(optional)</span></h3>
+        <div class="muted">Rough daily calorie burn via Mifflin-St Jeor. Not medical advice.</div>
+        <div class="row">
+          <div style="flex:1"><label class="field">Age</label><input type="number" id="t-age" inputmode="numeric"></div>
+          <div style="flex:1"><label class="field">Sex</label><select id="t-sex"><option value="male">Male</option><option value="female">Female</option></select></div>
+        </div>
+        <div class="row">
+          <div style="flex:1"><label class="field">Height (cm)</label><input type="number" id="t-height" inputmode="decimal"></div>
+          <div style="flex:1"><label class="field">Weight (kg)</label><input type="number" id="t-weight" inputmode="decimal"></div>
+        </div>
+        <label class="field">Activity</label>
+        <select id="t-act">
+          <option value="1.2">Sedentary (little exercise)</option>
+          <option value="1.375">Light (1–3 days/wk)</option>
+          <option value="1.55" selected>Moderate (3–5 days/wk)</option>
+          <option value="1.725">Heavy (6–7 days/wk)</option>
+          <option value="1.9">Athlete (2x/day)</option>
+        </select>
+        <div style="height:10px"></div>
+        <button class="btn secondary" id="tdee-calc">Estimate TDEE</button>
+        <div id="tdee-out" style="margin-top:10px;font-size:14px"></div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabs">
+    <button data-tab="log" class="active"><span class="ico">📝</span>Log</button>
+    <button data-tab="scan"><span class="ico">📷</span>Scan</button>
+    <button data-tab="goals"><span class="ico">🎯</span>Goals</button>
+  </nav>
+</div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
