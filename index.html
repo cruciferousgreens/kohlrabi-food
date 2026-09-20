@@ -12,7 +12,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <h1 class="title">🥬 Kohlrabi Food<span class="sample-badge">SAMPLE</span></h1>
+    <h1 class="title"><svg class="leaf" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19C5 9.5 12.5 5 20 4c-.5 8-5 15-14 15"/><path d="M5 19c2.5-5.5 6-9.5 11-11.5"/></svg>Kohlrabi Food<span class="sample-badge">SAMPLE</span></h1>
   </header>
 
   <main>
@@ -27,6 +27,10 @@
         <h3>Today's totals <span class="muted">vs goals</span></h3>
         <div id="rollup"></div>
       </div>
+      <div class="card" id="quick-card" hidden>
+        <h3>Quick add <span class="muted">— log again in one tap</span></h3>
+        <div id="quick-add"></div>
+      </div>
       <div class="card">
         <h3>Log <span class="muted">— chronological</span></h3>
         <div id="entries"></div>
@@ -36,7 +40,7 @@
     <!-- SCAN -->
     <section class="tab" id="tab-scan">
       <div class="card scan-hero">
-        <div class="big">📷</div>
+        <svg class="hero-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M4 12h16"/></svg>
         <h3>Scan a barcode</h3>
         <div class="muted">Point the camera at a product barcode.</div>
       </div>
@@ -86,12 +90,35 @@
         <h3>Calories by day</h3>
         <div id="stats-cals"></div>
       </div>
+      <div class="card">
+        <div class="row between">
+          <h3 style="margin:0">Weight</h3>
+          <button class="btn small secondary" id="weight-add">Enter weight</button>
+        </div>
+        <div id="weight-summary" style="margin-top:8px"></div>
+        <div id="weight-list" style="margin-top:8px"></div>
+      </div>
     </section>
 
-    <!-- GOALS -->
-    <section class="tab" id="tab-goals">
+    <!-- SETTINGS -->
+    <section class="tab" id="tab-settings">
       <div class="card">
-        <h3>Daily goals</h3>
+        <h3>Calorie goal</h3>
+        <div class="period-tabs" id="dir-pills"></div>
+        <div id="rate-row" style="margin-top:10px">
+          <label class="field" style="margin-top:0">Pace</label>
+          <div class="period-tabs" id="rate-pills"></div>
+        </div>
+        <div id="cal-target-out" style="margin-top:10px;font-size:14px"></div>
+        <label class="field">Goal weight, optional (<span id="gw-unit">lb</span>)</label>
+        <div class="row">
+          <input type="number" id="goal-weight" inputmode="decimal" placeholder="e.g. 170">
+          <button class="btn small secondary" id="gw-save">Save</button>
+        </div>
+        <div class="muted" id="gw-projection" style="margin-top:6px"></div>
+      </div>
+      <div class="card">
+        <h3>Daily goals <span class="muted">— or set manually</span></h3>
         <div id="goals-form"></div>
         <div class="muted" id="goals-msg" style="margin-top:8px"></div>
       </div>
@@ -104,7 +131,7 @@
         </div>
         <div class="row">
           <div style="flex:1"><label class="field">Height (cm)</label><input type="number" id="t-height" inputmode="decimal"></div>
-          <div style="flex:1"><label class="field">Weight (kg)</label><input type="number" id="t-weight" inputmode="decimal"></div>
+          <div style="flex:1"><label class="field">Weight (<span id="tdee-wunit">lb</span>)</label><input type="number" id="t-weight" inputmode="decimal"></div>
         </div>
         <label class="field">Activity</label>
         <select id="t-act">
@@ -118,14 +145,26 @@
         <button class="btn secondary" id="tdee-calc">Estimate TDEE</button>
         <div id="tdee-out" style="margin-top:10px;font-size:14px"></div>
       </div>
+      <div class="card">
+        <h3>Units</h3>
+        <div class="period-tabs" id="unit-pills"></div>
+        <div class="muted" style="margin-top:8px">Applies to weigh-ins and the TDEE weight field.</div>
+      </div>
+      <div class="card">
+        <h3>Data</h3>
+        <div class="row">
+          <button class="btn secondary" id="export-json">Export JSON</button>
+          <button class="btn secondary" id="delete-all" style="color:var(--danger)">Delete all</button>
+        </div>
+      </div>
     </section>
   </main>
 
   <nav class="tabs">
-    <button data-tab="log" class="active"><span class="ico">📝</span>Log</button>
-    <button data-tab="scan"><span class="ico">📷</span>scan</button>
-    <button data-tab="stats"><span class="ico">📊</span>Stats</button>
-    <button data-tab="goals"><span class="ico">🎯</span>Goals</button>
+    <button data-tab="log" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1.3" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1.3" fill="currentColor" stroke="none"/></svg>Log</button>
+    <button data-tab="scan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M4 12h16"/></svg>scan</button>
+    <button data-tab="stats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 20v-7M12 20V6M18 20v-10"/><path d="M3 20h18"/></svg>Stats</button>
+    <button data-tab="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 8h9M17 8h3M4 16h3M11 16h9"/><circle cx="15" cy="8" r="2.2"/><circle cx="9" cy="16" r="2.2"/></svg>Settings</button>
   </nav>
   <button id="fab-add" class="fab" aria-label="Add food">+</button>
 </div>

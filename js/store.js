@@ -58,6 +58,46 @@ export function periodDays(startISO, n) {
   return out;
 }
 
+// --- Recently-logged foods (for quick re-logging) ---
+export function recentFoods(limit = 6) {
+  const seen = new Map();
+  const t = todayISO();
+  for (let i = 0; i < 30 && seen.size < limit; i++) {
+    const iso = shiftISO(t, -i);
+    for (const e of getDay(iso)) {
+      const key = [e.name, e.brand, e.serving.label].join('|');
+      if (!seen.has(key)) seen.set(key, e);
+    }
+  }
+  return [...seen.values()].slice(0, limit);
+}
+
+// --- Body weight entries: [{iso, lb}] sorted ascending ---
+export function getWeights() {
+  const d = read();
+  return (d.weights || []).slice().sort((a, b) => a.iso < b.iso ? -1 : 1);
+}
+export function addWeight(iso, lb) {
+  const d = read();
+  d.weights = (d.weights || []).filter(w => w.iso !== iso);
+  d.weights.push({ iso, lb: Math.round(lb * 10) / 10 });
+  write(d);
+}
+
+// --- Settings: weight unit, goal direction, last TDEE ---
+export function getUnit() { return read().unit || 'lb'; }
+export function setUnit(u) { const d = read(); d.unit = u; write(d); }
+export function getDirection() { return read().direction || 'maintain'; }
+export function setDirection(dir) { const d = read(); d.direction = dir; write(d); }
+export function getRate() { const r = read().rate; return r > 0 ? r : 1; }
+export function setRate(r) { const d = read(); d.rate = r; write(d); }
+export function getGoalWeight() { return read().goalWeightLb || 0; } // stored in lb
+export function setGoalWeight(lb) { const d = read(); d.goalWeightLb = lb; write(d); }
+export function getTDEE() { return read().tdee || 0; }
+export function setTDEE(t) { const d = read(); d.tdee = t; write(d); }
+export function exportAll() { return read(); }
+export function wipeAll() { try { localStorage.removeItem(K); } catch (_) {} }
+
 // --- Goals ---
 const DEFAULT_GOALS = { calories: 2200, protein: 150, carbs: 250, fat: 75, fiber: 30 };
 export function getGoals() { return { ...DEFAULT_GOALS, ...read(K.goals, {}) }; }

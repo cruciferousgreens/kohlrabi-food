@@ -1,6 +1,6 @@
 // sw.js — service worker. Cache-first for the app shell + vendored decoder,
 // so the scanner keeps working offline after first load. Bump on releases.
-const CACHE = 'kfood-v3';
+const CACHE = 'kfood-v4';
 const SHELL = [
   './',
   './index.html',

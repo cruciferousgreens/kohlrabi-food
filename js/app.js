@@ -1,7 +1,7 @@
 // js/app.js — Kohlrabi Food v1 (sample data). Tabs: Log / Scan / Goals.
 import { startScanner, normalizeBarcode } from './scanner.js';
 import { lookupBarcode, searchFoods, scaleNutrients, HEADLINE, HEADLINE_LABEL, HEADLINE_UNIT, EXTRA_LABEL, EXTRA_UNIT } from './fake-api.js';
-import { todayISO, shiftISO, prettyDate, getDay, addEntry, removeEntry, dayTotals, periodDays, getGoals, setGoals, getCustom, addCustom, getHistory, saveHistory } from './store.js';
+import { todayISO, shiftISO, prettyDate, getDay, addEntry, removeEntry, dayTotals, periodDays, recentFoods, getWeights, addWeight, getGoals, setGoals, getCustom, addCustom, getHistory, saveHistory, getUnit, setUnit, getDirection, setDirection, getRate, setRate, getGoalWeight, setGoalWeight, getTDEE, setTDEE, exportAll, wipeAll } from './store.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 let viewISO = todayISO();
@@ -17,7 +17,7 @@ document.querySelectorAll('nav.tabs button').forEach(btn => {
     $('#fab-add').hidden = btn.dataset.tab !== 'log';
     if (btn.dataset.tab === 'scan') ensureScanner();
     else stopScanner();
-    if (btn.dataset.tab === 'goals') renderGoals();
+    if (btn.dataset.tab === 'settings') renderSettings();
     if (btn.dataset.tab === 'stats') renderStats();
   });
 });
@@ -47,10 +47,22 @@ function renderLog() {
       <div class="row"><div class="macros">${Math.round(e.nutrients.calories)} cal<br>P ${fmt(e.nutrients.protein)} · Fb ${fmt(e.nutrients.fiber)}g</div>
       <button class="del" data-id="${e.id}" aria-label="Delete">×</button></div>
     </div>`).join('')
-    : `<div class="empty">Nothing logged yet.<br>Tap <b>Scan</b> below to log your first item.</div>`;
+    : `<div class="empty"><strong>Nothing logged yet.</strong><br>Tap + below to log your first item.</div>`;
 
   $('#entries').querySelectorAll('.del').forEach(b =>
     b.addEventListener('click', () => { removeEntry(viewISO, b.dataset.id); renderLog(); }));
+
+  // Quick add: one-tap re-log of recently eaten foods, right on the log.
+  const recents = recentFoods(6);
+  $('#quick-card').hidden = recents.length === 0;
+  if (recents.length) {
+    $('#quick-add').innerHTML = recents.map((p, i) => `
+      <div class="entry"><div><div class="name">${esc(p.name)}</div>
+      <div class="amt">${esc(p.brand || '')}${p.brand ? ' · ' : ''}${esc(p.serving.label)} · ${Math.round(p.nutrients.calories)} kcal</div></div>
+      <button class="btn small" data-q="${i}">Log</button></div>`).join('');
+    $('#quick-add').querySelectorAll('[data-q]').forEach(b =>
+      b.addEventListener('click', () => { addEntry(recents[+b.dataset.q], 1, viewISO); renderLog(); }));
+  }
 }
 function fmt(n) { return (Math.round(n * 10) / 10).toString(); }
 function esc(s) { return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -218,9 +230,9 @@ function openAddSheet() {
   openSheet(`
     <h2>Add food</h2>
     <div class="brand">How do you want to add it?</div>
-    <button class="btn" id="add-scan" style="margin-bottom:8px">📷&nbsp; Scan barcode</button>
-    <button class="btn secondary" id="add-search" style="margin-bottom:8px">🔍&nbsp; Search foods</button>
-    <button class="btn secondary" id="add-manual" style="margin-bottom:8px">✏️&nbsp; Add manually</button>
+    <button class="btn" id="add-scan" style="margin-bottom:8px">Scan barcode</button>
+    <button class="btn secondary" id="add-search" style="margin-bottom:8px">Search foods</button>
+    <button class="btn secondary" id="add-manual" style="margin-bottom:8px">Add manually</button>
     <div style="height:8px"></div>
     <button class="btn secondary" id="add-cancel">Cancel</button>
   `);
@@ -263,8 +275,51 @@ function openSearchSheet() {
   setTimeout(() => $('#sh-q').focus(), 50);
 }
 
-// ---------- Goals + TDEE ----------
-function renderGoals() {
+// ---------- Settings ----------
+// Calorie targets follow the 3,500 kcal ≈ 1 lb rule: 1 lb/week = 500 kcal/day.
+const DIR_DEFS = {
+  lose: { label: 'Lose weight', rates: [0.5, 1, 1.5, 2] },
+  maintain: { label: 'Maintain', rates: [] },
+  gain: { label: 'Gain weight', rates: [0.25, 0.5, 1] },
+};
+function dirOffset() {
+  const d = getDirection();
+  if (d === 'maintain') return 0;
+  return (d === 'lose' ? -1 : 1) * getRate() * 500;
+}
+// Set calorie goal from TDEE + direction/pace. Manual entry always wins —
+// the estimator is advisory only.
+function applyDirectionToCalories(announce) {
+  const tdee = getTDEE();
+  if (!(tdee > 0)) return;
+  const target = Math.round(tdee + dirOffset());
+  const g = getGoals(); g.calories = target; setGoals(g);
+  if (announce) $('#goals-msg').textContent = `Calorie goal set to ${target.toLocaleString()}.`;
+}
+
+function renderSettings() {
+  renderGoalsForm();
+  renderCalGoal();
+  renderUnitPills();
+  $('#tdee-wunit').textContent = getUnit();
+  $('#gw-unit').textContent = getUnit();
+  prefillTdeeWeight();
+  $('#export-json').onclick = () => {
+    const blob = new Blob([JSON.stringify(exportAll(), null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'kohlrabi-food-export.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  };
+  $('#delete-all').onclick = () => {
+    if (confirm('Delete ALL food data, weigh-ins, and settings? This cannot be undone.')) {
+      if (confirm('Really delete everything?')) { wipeAll(); location.reload(); }
+    }
+  };
+}
+
+function renderGoalsForm() {
   const g = getGoals();
   $('#goals-form').innerHTML = ['calories', 'protein', 'carbs', 'fat', 'fiber'].map(k => `
     <label class="field">${HEADLINE_LABEL[k]}${k === 'fiber' ? ' ✦' : ''} goal (${HEADLINE_UNIT[k] || 'kcal'})</label>
@@ -273,22 +328,110 @@ function renderGoals() {
   $('#goals-save').addEventListener('click', () => {
     const ng = {};
     ['calories', 'protein', 'carbs', 'fat', 'fiber'].forEach(k => { ng[k] = parseFloat($('#g-' + k).value) || 0; });
-    setGoals(ng); renderGoals(); renderLog();
+    setGoals(ng); renderGoalsForm(); renderLog();
     $('#goals-msg').textContent = 'Goals saved.';
   });
 }
+
+function renderCalGoal() {
+  const dir = getDirection();
+  const rates = DIR_DEFS[dir].rates;
+  $('#dir-pills').innerHTML = Object.entries(DIR_DEFS).map(([k, v]) =>
+    `<button type="button" class="period-tab" data-dir="${k}" aria-pressed="${dir === k}">${v.label}</button>`).join('');
+  $('#dir-pills').querySelectorAll('[data-dir]').forEach(b => b.addEventListener('click', () => {
+    if (getDirection() === b.dataset.dir) return;
+    setDirection(b.dataset.dir);
+    const nr = DIR_DEFS[b.dataset.dir].rates;
+    if (!nr.includes(getRate())) setRate(nr[0] || 1);
+    applyDirectionToCalories(false);
+    renderCalGoal(); renderGoalsForm(); renderGwProjection();
+  }));
+  $('#rate-row').style.display = rates.length ? '' : 'none';
+  if (rates.length) {
+    $('#rate-pills').innerHTML = rates.map(r =>
+      `<button type="button" class="period-tab" data-rate="${r}" aria-pressed="${getRate() === r}">${r} lb/wk</button>`).join('');
+    $('#rate-pills').querySelectorAll('[data-rate]').forEach(b => b.addEventListener('click', () => {
+      setRate(parseFloat(b.dataset.rate));
+      applyDirectionToCalories(false);
+      renderCalGoal(); renderGoalsForm(); renderGwProjection();
+    }));
+  }
+  const tdee = getTDEE(), out = $('#cal-target-out');
+  if (tdee > 0) {
+    const delta = dirOffset();
+    const target = Math.round(tdee + delta);
+    const pace = dir === 'maintain' ? 'eat at maintenance'
+      : `about ${getRate()} lb/week ${dir === 'lose' ? 'loss' : 'gain'} (3,500 kcal ≈ 1 lb)`;
+    out.innerHTML = `Daily target: <strong>${target.toLocaleString()} kcal</strong><br>
+      <span class="muted">TDEE ${Math.round(tdee).toLocaleString()} ${delta >= 0 ? '+' : '-'} ${Math.abs(delta)} · ${pace}.</span><br>
+      <button class="btn small" id="use-target" style="margin-top:8px">Use this target</button>
+      <div class="muted" style="margin-top:6px">Optional — or just type a calorie goal under Daily goals.</div>`;
+    $('#use-target').onclick = () => { applyDirectionToCalories(true); renderGoalsForm(); renderLog(); renderCalGoal(); };
+  } else {
+    out.innerHTML = `<span class="muted">Estimate your TDEE below and I'll compute a daily target from the 3,500 kcal ≈ 1 lb rule. Or just type a calorie goal under Daily goals — the estimator is optional.</span>`;
+  }
+  const gwInput = $('#goal-weight');
+  if (document.activeElement !== gwInput && !gwInput.dataset.touched) {
+    const gw = getGoalWeight();
+    gwInput.value = gw ? Math.round((getUnit() === 'kg' ? gw / 2.20462 : gw) * 10) / 10 : '';
+  }
+  $('#gw-save').onclick = () => {
+    const v = parseFloat(gwInput.value);
+    setGoalWeight(v > 0 ? (getUnit() === 'kg' ? v * 2.20462 : v) : 0);
+    gwInput.dataset.touched = '1';
+    renderGwProjection();
+  };
+  renderGwProjection();
+}
+
+function renderGwProjection() {
+  const el = $('#gw-projection');
+  const gw = getGoalWeight(), dir = getDirection(), weights = getWeights();
+  const cur = weights.length ? weights[weights.length - 1].lb : 0;
+  if (!gw || dir === 'maintain' || !cur) { el.textContent = ''; return; }
+  const diff = dir === 'lose' ? cur - gw : gw - cur;
+  if (diff <= 0) { el.textContent = 'Already at or past that goal weight — nice.'; return; }
+  const weeks = Math.max(1, Math.ceil(diff / getRate()));
+  el.textContent = `About ${weeks} week${weeks === 1 ? '' : 's'} to reach it at ${getRate()} lb/week.`;
+}
+
+function renderUnitPills() {
+  const u = getUnit();
+  $('#unit-pills').innerHTML = ['lb', 'kg'].map(x =>
+    `<button type="button" class="period-tab" data-u="${x}" aria-pressed="${u === x}">${x === 'lb' ? 'Pounds (lb)' : 'Kilograms (kg)'}</button>`).join('');
+  $('#unit-pills').querySelectorAll('[data-u]').forEach(b => b.addEventListener('click', () => {
+    if (getUnit() === b.dataset.u) return;
+    setUnit(b.dataset.u);
+    renderSettings();
+  }));
+}
+
+function prefillTdeeWeight() {
+  const w = $('#t-weight');
+  if (w.value) return;
+  const weights = getWeights();
+  if (!weights.length) return;
+  const lb = weights[weights.length - 1].lb;
+  w.value = Math.round((getUnit() === 'kg' ? lb / 2.20462 : lb) * 10) / 10;
+}
 $('#tdee-calc').addEventListener('click', () => {
-  const age = parseFloat($('#t-age').value), h = parseFloat($('#t-height').value), w = parseFloat($('#t-weight').value);
+  const age = parseFloat($('#t-age').value), h = parseFloat($('#t-height').value);
+  let w = parseFloat($('#t-weight').value);
   const sex = $('#t-sex').value, act = parseFloat($('#t-act').value);
   if (!age || !h || !w) { $('#tdee-out').textContent = 'Fill in age, height, and weight.'; return; }
+  if (getUnit() === 'lb') w = w / 2.20462; // formula takes kg
   const bmr = 10 * w + 6.25 * h - 5 * age + (sex === 'male' ? 5 : -161);
   const tdee = Math.round(bmr * act);
-  $('#tdee-out').innerHTML = `Estimated TDEE: <b>${tdee} kcal/day</b> (Mifflin-St Jeor, rough — not medical advice).<br>
+  setTDEE(tdee);
+  const delta = dirOffset();
+  const target = Math.round(tdee + delta);
+  $('#tdee-out').innerHTML = `Estimated TDEE: <b>${tdee.toLocaleString()} kcal/day</b> (Mifflin-St Jeor, rough — not medical advice).<br>
+    <span class="muted">With your ${DIR_DEFS[getDirection()].label.toLowerCase()} goal${delta ? ` (${delta > 0 ? '+' : '-'}${Math.abs(delta)})` : ''}: <b>${target.toLocaleString()} kcal/day</b>.</span><br>
     <button class="btn small" id="tdee-use" style="margin-top:8px">Use as calorie goal</button>`;
   $('#tdee-use').addEventListener('click', () => {
-    setGoals({ calories: tdee }); renderGoals(); renderLog();
-    $('#goals-msg').textContent = 'Calorie goal set to ' + tdee + '.';
+    applyDirectionToCalories(true); renderGoalsForm(); renderLog(); renderCalGoal();
   });
+  renderCalGoal();
 });
 
 // ---------- Stats (goals vs actuals, workout-app language) ----------
@@ -382,6 +525,62 @@ function renderStats() {
   }
   $('#stats-avg-label').textContent = '— ' + label;
   $('#stats-goals').innerHTML = MACROS5.map(k => goalRow(k, actuals[k], goals[k])).join('');
+  renderWeights();
+}
+
+// ---------- Weight tracking (Stats) ----------
+function renderWeights() {
+  const unit = getUnit();
+  const weights = getWeights();
+  const toU = lb => unit === 'kg' ? lb / 2.20462 : lb;
+  const fmtW = lb => `${Math.round(toU(lb) * 10) / 10} ${unit}`;
+  $('#weight-add').onclick = openWeightSheet;
+  if (!weights.length) {
+    $('#weight-summary').innerHTML = '<div class="muted">No weigh-ins yet. Tap Enter weight to log your first.</div>';
+    $('#weight-list').innerHTML = '';
+    return;
+  }
+  const latest = weights[weights.length - 1];
+  const target = shiftISO(latest.iso, -7);
+  let ref = weights[0];
+  for (const w of weights) { if (w.iso <= target) ref = w; }
+  const deltaU = Math.round(toU(latest.lb - ref.lb) * 10) / 10;
+  const dstr = Math.abs(deltaU) < 0.05 ? 'no change'
+    : `${deltaU > 0 ? '+' : ''}${deltaU} ${unit}`;
+  $('#weight-summary').innerHTML = `
+    <div style="font-size:24px;font-weight:800;letter-spacing:-.02em">${fmtW(latest.lb)}</div>
+    <div class="muted">${prettyDate(latest.iso)} · ${dstr} since ${prettyDate(ref.iso)}</div>`;
+  $('#weight-list').innerHTML = weights.slice(-8).reverse().map(w =>
+    `<div class="nut-row"><span>${prettyDate(w.iso)}</span><strong>${fmtW(w.lb)}</strong></div>`).join('');
+}
+
+function openWeightSheet() {
+  const unit = getUnit();
+  const weights = getWeights();
+  const latest = weights.length ? weights[weights.length - 1] : null;
+  const prefill = latest ? Math.round((unit === 'kg' ? latest.lb / 2.20462 : latest.lb) * 10) / 10 : '';
+  openSheet(`
+    <h2>Enter weight</h2>
+    <div class="brand">Weigh-ins live under Stats, next to your nutrition trends.</div>
+    <div class="row">
+      <div style="flex:1"><label class="field">Weight (${unit})</label><input type="number" id="w-val" inputmode="decimal" value="${prefill}"></div>
+      <div style="flex:1"><label class="field">Date</label><input type="date" id="w-date" value="${todayISO()}"></div>
+    </div>
+    <div style="height:12px"></div>
+    <button class="btn" id="w-save">Save weigh-in</button>
+    <div style="height:8px"></div>
+    <button class="btn secondary" id="w-cancel">Cancel</button>
+  `);
+  $('#w-cancel').onclick = closeSheet;
+  $('#w-save').onclick = () => {
+    const v = parseFloat($('#w-val').value);
+    const iso = $('#w-date').value || todayISO();
+    if (!(v > 0)) return;
+    addWeight(iso, unit === 'kg' ? v * 2.20462 : v);
+    closeSheet();
+    renderStats();
+  };
+  setTimeout(() => $('#w-val').focus(), 50);
 }
 
 // ---------- init ----------

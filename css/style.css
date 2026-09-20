@@ -89,7 +89,11 @@ nav.tabs button {
   display: flex; flex-direction: column; align-items: center; gap: 2px;
 }
 nav.tabs button .ico { font-size: 22px; }
+nav.tabs button svg { width: 24px; height: 24px; }
 nav.tabs button.active { color: var(--accent); }
+header.topbar .title svg.leaf { width: 22px; height: 22px; color: var(--accent); flex: none; }
+header.topbar .title { gap: 6px; }
+.scan-hero .hero-ico { width: 56px; height: 56px; color: var(--accent); }
 
 main { padding: calc(54px + env(safe-area-inset-top) + 12px) 12px calc(96px + env(safe-area-inset-bottom)); }
 .tab { display: none; }
@@ -126,7 +130,7 @@ main { padding: calc(54px + env(safe-area-inset-top) + 12px) 12px calc(96px + en
 
 /* ===== Forms ===== */
 label.field { display: block; color: var(--muted); font-size: 12px; font-weight: 700; margin: 12px 0 6px; }
-input[type=text], input[type=number], input[type=tel], select {
+input[type=text], input[type=number], input[type=tel], input[type=date], select {
   width: 100%; min-height: 44px; padding: 0 12px;
   font-size: 16px; font-family: var(--font-sans); color: var(--ink);
   border: 1px solid var(--line); border-radius: var(--radius-sm);
@@ -270,3 +274,12 @@ details.nutrients summary { cursor: pointer; font-weight: 700; color: var(--acce
 .goal-line { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--subtle); pointer-events: none; }
 .bar-labels { display: flex; gap: 6px; margin-top: 4px; }
 .bar-labels span { flex: 1; text-align: center; font-size: 10px; color: var(--muted); font-weight: 700; }
+
+/* ===== Desktop: chrome spans full width, content stays a column ===== */
+@media (min-width: 720px) {
+  header.topbar, nav.tabs { max-width: none; }
+  main { max-width: 600px; }
+  .sheet-backdrop { align-items: center; padding: 24px; }
+  .sheet { border-radius: var(--radius-lg); max-height: calc(100dvh - 48px); }
+  .fab { right: 24px; }
+}
